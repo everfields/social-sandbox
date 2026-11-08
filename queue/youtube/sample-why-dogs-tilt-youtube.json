@@ -1,0 +1,20 @@
+{
+  "id": "sample-why-dogs-tilt-youtube",
+  "network": "youtube",
+  "format": "still-story",
+  "batch": "2026-W46",
+  "media": {
+    "file": "sample-why-dogs-tilt.mp4",
+    "sha256": "0b439c1ad269cb250f812690ade04ab665db8bf98dfa8402d3d61d926b855033",
+    "kind": "video"
+  },
+  "caption": "Why your dog tilts its head when you talk.",
+  "title": "Why dogs tilt their heads",
+  "language": "en",
+  "tags": [],
+  "ai": {
+    "generated": true,
+    "realistic": false
+  },
+  "trial": false
+}

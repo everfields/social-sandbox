@@ -1,0 +1,20 @@
+{
+  "id": "sample-dog-years-instagram",
+  "network": "instagram",
+  "format": "code-card",
+  "batch": "2026-W46",
+  "media": {
+    "file": "sample-dog-years.mp4",
+    "sha256": "531e9c9f11346100a53b5d8cc059a5e346dd4b672876be881a024705fbe9fd48",
+    "kind": "video"
+  },
+  "caption": "Multiplying by seven was never right.",
+  "title": "Your dog is older than you think",
+  "language": "en",
+  "tags": [],
+  "ai": {
+    "generated": false,
+    "realistic": false
+  },
+  "trial": false
+}

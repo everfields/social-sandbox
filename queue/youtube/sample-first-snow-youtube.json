@@ -1,0 +1,20 @@
+{
+  "id": "sample-first-snow-youtube",
+  "network": "youtube",
+  "format": "motion-clip",
+  "batch": "2026-W46",
+  "media": {
+    "file": "sample-first-snow.mp4",
+    "sha256": "5e19c966d02d5d5dd4ad4846fa865b895ebd872250d6bdbd730e75cccb2d6981",
+    "kind": "video"
+  },
+  "caption": "Five seconds of first snow.",
+  "title": "A puppy meets snow",
+  "language": "en",
+  "tags": [],
+  "ai": {
+    "generated": true,
+    "realistic": true
+  },
+  "trial": false
+}
