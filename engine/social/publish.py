@@ -85,7 +85,7 @@ def spec_of(item: Item) -> PostSpec:
 def run(root: Path, state_dir: Path, cfg: Config, env: Mapping[str, str], *, now: datetime, live: bool,
         out: Path, only: str | None = None, transport: Transport | None = None, wait: bool = True,
         sleep: Callable[[float], None] = time.sleep, fetch: Callable[[str, Path], Path] | None = None,
-        repo: str = "") -> list[Outcome]:
+        repo: str = "", checkpoint: Callable[[], None] | None = None) -> list[Outcome]:
     out.mkdir(parents=True, exist_ok=True)
     real_log = PostLog(state_dir / "posts.csv")
     st = GuardState.load(state_dir / "state.json")
@@ -155,6 +155,8 @@ def run(root: Path, state_dir: Path, cfg: Config, env: Mapping[str, str], *, now
                           duration_s=float(probe.get("duration_s") or 0), public_url=url,
                           cover_s=(item.data.get("media") or {}).get("cover_s"))
             log.append(row)  # before the call: a crash leaves a pending row that blocks a double post
+            if net_live and checkpoint:
+                checkpoint()  # and it is already on the state branch, so a lost runner cannot double-post either
             result = adapter.post(media, spec_of(item))
         except Retryable as e:
             log.append(PostRow(**{**row.__dict__, "status": RETRY, "at": iso(now), "detail": redact_text(str(e))}))
@@ -180,6 +182,11 @@ def run(root: Path, state_dir: Path, cfg: Config, env: Mapping[str, str], *, now
                 if st.trip(net.name, now, f"limit error: {detail[:200]}", cfg.brake_hours):
                     alarms.raise_(f"brake-{net.name}", f"{net.name}: the brake tripped",
                                   f"A rate-limit or spam answer: {detail[:400]}\n\nPosts are halved for {cfg.brake_hours} h.")
+            elif "rejected it" in detail:
+                st.failures[net.name] = st.failures.get(net.name, 0) + 1
+                alarms.raise_(f"rejected-{net.name}", f"{net.name}: the network rejected a post",
+                              f"{detail[:400]}\n\nA rejection with no reason was the first sign of AntiSearch's X suspension "
+                              f"(2026-10-09). Check the account by hand.", "high")
             else:
                 st.failures[net.name] = st.failures.get(net.name, 0) + 1
                 if st.failures[net.name] >= 2:
@@ -198,6 +205,7 @@ def run(root: Path, state_dir: Path, cfg: Config, env: Mapping[str, str], *, now
             st.first_post.setdefault(net.name, posting_day(cfg, now).isoformat())
             st.failures[net.name] = 0
             alarms.clear(f"failing-{net.name}", "a post went out")
+            alarms.clear(f"rejected-{net.name}", "a post went out")
             st.seen[result.remote_id] = {"network": net.name, "item": item.id, "first_seen": iso(now)}
         results.append(Outcome(net.name, "posted" if net_live else "dry-run", result.state, item.id, result.url))
     if any_live:

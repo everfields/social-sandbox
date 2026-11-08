@@ -13,6 +13,7 @@
     check-public URL                does this post show up for a logged-out viewer?
     token-refresh --out FILE        extend Instagram's token; the new one goes to FILE, never to the log
     youtube-auth url | exchange --code CODE --out FILE     the founder's one-time consent
+    buffer-channels                 the channel ids to pin as BUFFER_CHANNEL_<NETWORK>
     status                          one view of slots, queue and guards
 
 Every command takes --root (default: here) and --state (default: state/, a checkout of the social-state branch).
@@ -24,6 +25,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -31,6 +33,8 @@ from urllib.parse import urlencode
 
 from . import VERSION
 from .alarms import Alarms
+from .base import Retryable
+from .buffer import CHANNELS, ORGS, BufferTikTok
 from .config import Config, ConfigError, load
 from .http import Request, UrllibTransport, redact_text
 from .instagram import InstagramDirect, refresh_token
@@ -93,9 +97,27 @@ def alarm_status(alarms: Alarms) -> int:
     return 1 if alarms.errors else 0
 
 
+def git_checkpoint(state: Path):
+    """Push the pending row before the API call. If it cannot be saved, nothing goes out."""
+
+    def save() -> None:
+        git = ["git", "-C", str(state)]
+        who = ["-c", "user.name=social-publisher", "-c", "user.email=actions@users.noreply.github.com"]
+        try:
+            subprocess.run([*git, "add", "-A", "."], check=True, capture_output=True, timeout=60)
+            if subprocess.run([*git, "diff", "--cached", "--quiet"], timeout=60).returncode == 0:
+                return
+            subprocess.run([*git, *who, "commit", "--quiet", "-m", f"pending {iso(now_utc())}"], check=True, capture_output=True, timeout=60)
+            subprocess.run([*git, "push", "--quiet", "origin", "HEAD:social-state"], check=True, capture_output=True, timeout=120)
+        except (subprocess.SubprocessError, OSError) as e:
+            raise Retryable("could not save the pending row, so nothing was sent") from e
+
+    return save
+
+
 def cmd_publish(a, cfg: Config, root: Path, state: Path) -> int:
     results = run(root, state, cfg, os.environ, now=now_utc(), live=a.live, out=Path(a.out), only=a.network,
-                  wait=not a.no_wait)
+                  wait=not a.no_wait, checkpoint=git_checkpoint(state) if a.live and (state / ".git").exists() else None)
     out([r.__dict__ for r in results])
     st = GuardState.load(state / "state.json")
     alarms = alarms_for(st, cfg)
@@ -246,6 +268,14 @@ def cmd_youtube_auth(a, cfg: Config, root: Path, state: Path) -> int:
     return 0
 
 
+def cmd_buffer_channels(a, cfg: Config, root: Path, state: Path) -> int:
+    """The ids to pin as BUFFER_CHANNEL_<NETWORK>, which saves two requests per post."""
+    b = BufferTikTok(UrllibTransport(), os.environ)
+    org = b.var("BUFFER_ORG_ID") or b.gql(ORGS)["account"]["organizations"][0]["id"]
+    out([{"service": c["service"], "id": c["id"], "name": c["name"]} for c in b.gql(CHANNELS, {"org": org})["channels"]])
+    return 0
+
+
 def cmd_status(a, cfg: Config, root: Path, state: Path) -> int:
     log = PostLog(state / "posts.csv")
     st = GuardState.load(state / "state.json")
@@ -266,7 +296,7 @@ COMMANDS = {
     "validate": cmd_validate, "due": cmd_due, "publish": cmd_publish, "intake": cmd_intake, "pages": cmd_pages,
     "metrics": cmd_metrics, "watch": cmd_watch, "archive": cmd_archive, "resolve": cmd_resolve, "resume": cmd_resume,
     "check-public": cmd_check_public, "token-refresh": cmd_token_refresh, "youtube-auth": cmd_youtube_auth,
-    "status": cmd_status,
+    "status": cmd_status, "buffer-channels": cmd_buffer_channels,
 }
 
 

@@ -52,7 +52,8 @@ class Kit:
         return self.comfy.run(video_graph(prompt, width, height, frames, self.seed if seed is None else seed, steps=steps), Path(out))
 
     def done_with_models(self) -> None:
-        self.comfy.free()
+        if self.comfy.up():
+            self.comfy.free()
         self.comfy.stop()
 
     def run(self, *args: str) -> None:
@@ -157,8 +158,11 @@ class Kit:
         self.run("-f", "concat", "-safe", "0", "-i", str(lst), "-c:a", "pcm_s16le", str(out))
         return Path(out)
 
-    def finish(self, video: Path, out: Path, *, voice: Path | None = None, bed: Path | None = None, trim: float | None = None) -> Path:
-        """The master: 1080x1920, H.264 yuv420p, 30 fps, AAC 44.1 kHz, faststart."""
+    def finish(self, video: Path, out: Path, *, voice: Path | None = None, bed: Path | None = None, trim: float | None = None,
+               loudness: float = -15.0) -> Path:
+        """The master: 1080x1920, H.264 yuv420p, 30 fps, AAC 44.1 kHz, faststart, levelled to `loudness` LUFS. A clip whose
+        only sound is a pad passes a lower target: the platforms play everything near -14, and a drone at that level grates."""
+        level = f"loudnorm=I={loudness}:TP=-1.5:LRA=11"
         args = ["-i", str(video)]
         inputs = 0
         if voice:
@@ -172,9 +176,10 @@ class Kit:
             amap = "1:a"
             fa = ["-map", amap, "-shortest"]
         elif inputs == 1:
-            fa = ["-map", "1:a", "-shortest"]
+            args += ["-filter_complex", f"[1:a]aresample=44100,{level}[a]"]
+            fa = ["-map", "[a]", "-shortest"]
         else:
-            args += ["-filter_complex", "[1:a]aresample=44100,volume=1.0[v];[2:a]aresample=44100[b];[v][b]amix=inputs=2:duration=first:dropout_transition=0[a]"]
+            args += ["-filter_complex", f"[1:a]aresample=44100[v];[2:a]aresample=44100[b];[v][b]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,{level}[a]"]
             fa = ["-map", "[a]"]
         v = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps=30,format=yuv420p"
         self.run(*args, "-map", "0:v", *fa, "-vf", v, *(["-t", f"{trim:.3f}"] if trim else []), "-c:v", "libx264", "-preset", "medium",

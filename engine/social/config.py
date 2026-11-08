@@ -100,7 +100,7 @@ INTAKE_DEFAULTS = {
     "min_height": 1280,
     "min_s": 3,
     "max_s": 90,
-    "max_mb": 95,
+    "max_mb": 60,  # TikTok's single-chunk upload stops at 64 MB; these clips are 1-20 MB
     "video_codecs": ["h264", "hevc"],
     "audio_codecs": ["aac"],
     "max_hashtags": 3,

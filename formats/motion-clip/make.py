@@ -17,5 +17,5 @@ def make(post, out_dir, kit):
     hook = kit.caption_png(p["hook"], out_dir / "hook.png", y=420, size=84)
     video = kit.overlay(scaled, hook, out_dir / "video.mp4", start=0.15, end=kit.seconds(scaled) - 0.1)
     bed = kit.bed(kit.seconds(video), out_dir / "bed.wav", root_hz=110.0, volume=0.09)
-    final = kit.finish(video, out_dir / "final.mp4", voice=bed)
+    final = kit.finish(video, out_dir / "final.mp4", voice=bed, loudness=-20.0)
     return {"file": final, "ai": {"generated": True, "realistic": True}}

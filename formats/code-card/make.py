@@ -64,5 +64,5 @@ def make(post, out_dir, kit):
     if ff.wait() != 0:
         raise RuntimeError("ffmpeg failed drawing the frames")
     bed = kit.bed(total, out_dir / "bed.wav", root_hz=98.0, volume=0.1)
-    final = kit.finish(silent, out_dir / "final.mp4", voice=bed)
+    final = kit.finish(silent, out_dir / "final.mp4", voice=bed, loudness=-20.0)
     return {"file": final, "ai": {"generated": False}}

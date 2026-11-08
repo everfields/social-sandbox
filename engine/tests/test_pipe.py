@@ -470,6 +470,54 @@ class TestPublishRun(TmpCase):
         self.assertEqual(statuses, [PENDING, PUBLISHED])
         self.assertEqual(GuardState.load(self.r.state / "state.json").first_post["tiktok"], "2026-01-01")
 
+    def run_with_checkpoint(self, checkpoint, stub):
+        return publish.run(self.r.dir, self.r.state, self.r.cfg, {**self.r.env, "BUFFER_API_KEY": "k", "BUFFER_CHANNEL_TIKTOK": "c"},
+                           now=et(2026, 11, 12, 11), live=True, out=self.r.out, only="tiktok", transport=stub, wait=False,
+                           sleep=lambda s: None, checkpoint=checkpoint)
+
+    def test_the_pending_row_is_saved_before_the_call(self):
+        self.seed()
+        self.r.add()
+        seen = {}
+        stub = Stub(lambda q: answers(q))
+
+        def checkpoint():
+            seen["rows"] = [r["status"] for r in self.r.log.rows()]
+            seen["api_calls"] = len([q for q in stub.requests if "api.buffer.com" in q.url and "createPost" in q.json["query"]])
+
+        self.assertEqual(self.run_with_checkpoint(checkpoint, stub)[0].action, "posted")
+        self.assertEqual(seen, {"rows": [PENDING], "api_calls": 0})
+
+    def test_nothing_is_sent_when_the_pending_row_cannot_be_saved(self):
+        self.seed()
+        self.r.add()
+        stub = Stub(lambda q: answers(q))
+
+        def checkpoint():
+            raise Retryable("no push")
+
+        self.assertEqual(self.run_with_checkpoint(checkpoint, stub)[0].action, "retry")
+        self.assertFalse(any("api.buffer.com" in q.url for q in stub.requests))
+        self.assertNotIn("post-001", self.r.log.used_ids())
+
+    def test_a_rejection_with_no_reason_raises_the_alarm_at_once(self):
+        self.seed()
+        self.r.add()
+        self.r.env["COS_EVENT_TOKEN"] = "tok"
+
+        def fn(q):
+            if q.method == "HEAD":
+                return HttpResponse(200)
+            if "api.github.com" in q.url:
+                return HttpResponse(204)
+            return HttpResponse.of_json(200, {"data": {"createPost": {"__typename": "PostActionSuccess", "post": {
+                "id": "b1", "status": "error", "error": {"message": None}}}}})
+
+        stub = Stub(fn)
+        self.assertEqual(self.go(stub, env={"COS_EVENT_TOKEN": "tok"})[0].action, "failed")
+        sent = [q.json["client_payload"]["key"] for q in stub.requests if "api.github.com" in q.url]
+        self.assertIn("rejected-tiktok", sent)
+
     def test_pages_not_serving_is_a_retry(self):
         self.seed()
         self.r.add()
