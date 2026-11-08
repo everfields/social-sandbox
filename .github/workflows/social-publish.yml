@@ -1,0 +1,109 @@
+name: social-publish
+
+# The publisher. Every 15 minutes, off the hour; an outside clock also wakes it (repository_dispatch `social-tick`), because
+# GitHub drops scheduled runs. A `due` gate ends idle wakes in seconds. Dry run unless SOCIAL_CRON is `live` and the network
+# is in SOCIAL_LIVE_NETWORKS. Managed by the launch-company skill.
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  repository_dispatch:
+    types: [social-tick]
+  workflow_dispatch:
+    inputs:
+      network:
+        description: Only this network (empty = all)
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: social-state
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: engine
+  PYTHONUNBUFFERED: "1"
+  SOCIAL_CRON: ${{ vars.SOCIAL_CRON || 'off' }}
+  SOCIAL_LIVE_NETWORKS: ${{ vars.SOCIAL_LIVE_NETWORKS }}
+  SOCIAL_PUBLIC_BASE_URL: ${{ vars.SOCIAL_PUBLIC_BASE_URL }}
+  SOCIAL_ROUTE_TIKTOK: ${{ vars.SOCIAL_ROUTE_TIKTOK }}
+  SOCIAL_ROUTE_INSTAGRAM: ${{ vars.SOCIAL_ROUTE_INSTAGRAM }}
+  SOCIAL_ROUTE_YOUTUBE: ${{ vars.SOCIAL_ROUTE_YOUTUBE }}
+  SOCIAL_ROUTE_X: ${{ vars.SOCIAL_ROUTE_X }}
+  SOCIAL_SLOTS_TIKTOK: ${{ vars.SOCIAL_SLOTS_TIKTOK }}
+  SOCIAL_SLOTS_INSTAGRAM: ${{ vars.SOCIAL_SLOTS_INSTAGRAM }}
+  SOCIAL_SLOTS_YOUTUBE: ${{ vars.SOCIAL_SLOTS_YOUTUBE }}
+  SOCIAL_SLOTS_X: ${{ vars.SOCIAL_SLOTS_X }}
+
+jobs:
+  post:
+    if: github.event_name == 'workflow_dispatch' || vars.SOCIAL_CRON == 'dry-run' || vars.SOCIAL_CRON == 'live'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      BUFFER_ORG_ID: ${{ vars.BUFFER_ORG_ID }}
+      BUFFER_CHANNEL_TIKTOK: ${{ vars.BUFFER_CHANNEL_TIKTOK }}
+      BUFFER_CHANNEL_X: ${{ vars.BUFFER_CHANNEL_X }}
+      BUFFER_CHANNEL_INSTAGRAM: ${{ vars.BUFFER_CHANNEL_INSTAGRAM }}
+      BUFFER_CHANNEL_YOUTUBE: ${{ vars.BUFFER_CHANNEL_YOUTUBE }}
+      INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+      INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+      TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+      TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+      X_API_KEY: ${{ secrets.X_API_KEY }}
+      X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+      X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+      X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+      COS_EVENT_TOKEN: ${{ secrets.COS_EVENT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Load the state (branch social-state)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$remote" social-state >/dev/null; then
+            git clone --quiet --depth 1 --branch social-state "$remote" state
+          else
+            git init --quiet -b social-state state
+            git -C state remote add origin "$remote"
+          fi
+      - name: Anything due?
+        id: due
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if python -m social due; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Post
+        if: steps.due.outputs.go == 'true'
+        run: |
+          flags=()
+          [ "$SOCIAL_CRON" = "live" ] && flags+=(--live)
+          [ -n "${{ inputs.network }}" ] && flags+=(--network "${{ inputs.network }}")
+          python -m social publish "${flags[@]}"
+      - name: Save the state
+        if: always() && env.SOCIAL_CRON == 'live'
+        run: |
+          cd state
+          git add -A .
+          git diff --cached --quiet && exit 0
+          git -c user.name=social-publisher -c user.email=actions@users.noreply.github.com commit --quiet -m "post log $(date -u +%FT%TZ)"
+          git push --quiet origin social-state
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.due.outputs.go == 'true'
+        with:
+          name: publish-${{ github.run_id }}
+          path: |
+            out/plan-*.json
+            out/run.json
+            out/alarms.json
+          if-no-files-found: ignore
+          retention-days: 14

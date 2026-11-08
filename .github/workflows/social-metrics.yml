@@ -1,0 +1,88 @@
+name: social-metrics
+
+# Every 3 hours: per-post and per-account numbers through each network's own API where the route is direct. Read-only on the
+# networks. A missing number is blank, never 0, and the run turns red when a live network returns nothing. Weekly it also
+# extends Instagram's 60-day token. Managed by the launch-company skill.
+on:
+  schedule:
+    - cron: "23 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      refresh_token:
+        description: Extend Instagram's token now
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: social-state
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: engine
+  PYTHONUNBUFFERED: "1"
+  SOCIAL_CRON: ${{ vars.SOCIAL_CRON || 'off' }}
+  SOCIAL_LIVE_NETWORKS: ${{ vars.SOCIAL_LIVE_NETWORKS }}
+  SOCIAL_PUBLIC_BASE_URL: ${{ vars.SOCIAL_PUBLIC_BASE_URL }}
+  SOCIAL_ROUTE_TIKTOK: ${{ vars.SOCIAL_ROUTE_TIKTOK }}
+  SOCIAL_ROUTE_INSTAGRAM: ${{ vars.SOCIAL_ROUTE_INSTAGRAM }}
+  SOCIAL_ROUTE_YOUTUBE: ${{ vars.SOCIAL_ROUTE_YOUTUBE }}
+  SOCIAL_ROUTE_X: ${{ vars.SOCIAL_ROUTE_X }}
+  BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+  BUFFER_ORG_ID: ${{ vars.BUFFER_ORG_ID }}
+  INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+  INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+  YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+  YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+  YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+  COS_EVENT_TOKEN: ${{ secrets.COS_EVENT_TOKEN }}
+
+jobs:
+  numbers:
+    if: github.event_name == 'workflow_dispatch' || vars.SOCIAL_CRON == 'dry-run' || vars.SOCIAL_CRON == 'live'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Load the state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$remote" social-state >/dev/null; then
+            git clone --quiet --depth 1 --branch social-state "$remote" state
+          else
+            git init --quiet -b social-state state
+            git -C state remote add origin "$remote"
+          fi
+      - name: Collect
+        id: collect
+        continue-on-error: true
+        run: python -m social metrics
+      - name: Save the numbers
+        if: always() && env.SOCIAL_CRON == 'live'
+        run: |
+          cd state
+          git add -A .
+          git diff --cached --quiet && exit 0
+          git -c user.name=social-metrics -c user.email=actions@users.noreply.github.com commit --quiet -m "metrics $(date -u +%FT%TZ)"
+          git push --quiet origin social-state
+      - name: Extend Instagram's token (Mondays, or on request)
+        if: vars.SOCIAL_CRON == 'live' && (inputs.refresh_token || github.event.schedule == '23 */3 * * *')
+        env:
+          GH_TOKEN: ${{ secrets.SOCIAL_SECRETS_TOKEN }}
+        run: |
+          case "${{ inputs.refresh_token }}$(date -u +%u%H)" in true*|106) ;; *) exit 0 ;; esac
+          [ -n "$INSTAGRAM_ACCESS_TOKEN" ] && [ -n "$GH_TOKEN" ] || exit 0
+          umask 077
+          python -m social token-refresh --out "$RUNNER_TEMP/ig-token"
+          gh secret set INSTAGRAM_ACCESS_TOKEN --repo "$GITHUB_REPOSITORY" < "$RUNNER_TEMP/ig-token"
+          rm -f "$RUNNER_TEMP/ig-token"
+      - name: Red when a live network gave nothing
+        if: steps.collect.outcome == 'failure'
+        run: exit 1

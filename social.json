@@ -1,0 +1,57 @@
+{
+  "company": "Social sandbox",
+  "company_repo": "everfields/demo-project",
+  "timezone": "Europe/Madrid",
+  "quiet": [
+    "01:00",
+    "08:00"
+  ],
+  "public_base_url": "https://everfields.github.io/social-sandbox",
+  "networks": {
+    "tiktok": {
+      "enabled": true,
+      "route": "buffer",
+      "slots": [
+        "11:07"
+      ],
+      "handle": ""
+    },
+    "instagram": {
+      "enabled": true,
+      "route": "direct",
+      "slots": [
+        "11:37"
+      ]
+    },
+    "youtube": {
+      "enabled": true,
+      "route": "direct",
+      "slots": [
+        "11:17"
+      ]
+    },
+    "x": {
+      "enabled": false,
+      "route": "buffer",
+      "slots": [
+        "10:07",
+        "17:07"
+      ]
+    }
+  },
+  "warmup": {
+    "days": 14,
+    "start": 1
+  },
+  "jitter_minutes": 40,
+  "brake": {
+    "hours": 72,
+    "reach_floor": 100,
+    "reach_ratio": 0.5
+  },
+  "runway": {
+    "alarm_days": 5,
+    "target_days": 10
+  },
+  "heartbeat_alarm_hours": 36
+}

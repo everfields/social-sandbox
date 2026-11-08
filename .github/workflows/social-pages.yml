@@ -1,0 +1,50 @@
+name: social-pages
+
+# Redeploys the Pages runway: unposted media plus what went out in the last 48 hours. Intake deploys after each batch; this one
+# prunes the rest. Media are never in git. Managed by the launch-company skill.
+on:
+  schedule:
+    - cron: "11 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: social-pages
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: engine
+  SOCIAL_CRON: ${{ vars.SOCIAL_CRON || 'off' }}
+  SOCIAL_PUBLIC_BASE_URL: ${{ vars.SOCIAL_PUBLIC_BASE_URL }}
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.SOCIAL_CRON == 'dry-run' || vars.SOCIAL_CRON == 'live'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Load the state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$remote" social-state >/dev/null; then
+            git clone --quiet --depth 1 --branch social-state "$remote" state
+          else
+            mkdir state
+          fi
+      - run: python -m social pages --out site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4

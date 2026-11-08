@@ -1,0 +1,26 @@
+name: social-ci
+
+# Tests and an offline dry run. Managed by the launch-company skill.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: engine
+      SOCIAL_CRON: dry-run
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - run: python -m unittest discover -s engine/tests
+      - run: python -m social validate
+      - run: mkdir -p state && python -m social publish --no-wait

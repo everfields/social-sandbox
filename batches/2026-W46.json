@@ -1,0 +1,61 @@
+{
+  "week": "2026-W46",
+  "posts": [
+    {
+      "id": "sample-why-dogs-tilt",
+      "format": "still-story",
+      "networks": ["tiktok", "instagram", "youtube"],
+      "caption": "Why your dog tilts its head when you talk.",
+      "title": "Why dogs tilt their heads",
+      "script": "Head-tilt explainer, three sentences.",
+      "prompts": {
+        "style": "Warm storybook illustration, soft gouache colours, gentle light, simple background, vertical composition, no text, no letters, no watermark",
+        "voice": "af_heart",
+        "scenes": [
+          { "say": "Your dog tilts its head when you talk. Nobody is completely sure why.", "image": "A friendly golden retriever sitting on a living room rug, tilting its head to one side, looking curiously up at the viewer" },
+          { "say": "It may help them place a sound, or see your face past their muzzle.", "image": "Close-up portrait of a brown and white dog with one ear lifted, listening intently, seen from the front" },
+          { "say": "In one study, dogs that had learned toy names tilted far more when they heard them.", "image": "A small black dog tilting its head beside a basket of colourful plush toys on a wooden floor" }
+        ]
+      },
+      "ai": { "generated": true, "realistic": false }
+    },
+    {
+      "id": "sample-first-snow",
+      "format": "motion-clip",
+      "networks": ["tiktok", "instagram", "youtube"],
+      "caption": "Five seconds of first snow.",
+      "title": "A puppy meets snow",
+      "script": "A puppy seeing snow for the first time.",
+      "prompts": {
+        "video": "A golden retriever puppy sees snow for the first time, jumping playfully and snapping at falling snowflakes in a quiet backyard at dusk, warm porch light behind it, soft focus background, gentle slow motion, cinematic, handheld camera at the puppy's height, vertical video",
+        "hook": "first snow",
+        "frames": 121,
+        "steps": 20
+      },
+      "ai": { "generated": true, "realistic": true }
+    },
+    {
+      "id": "sample-dog-years",
+      "format": "code-card",
+      "networks": ["tiktok", "instagram", "youtube"],
+      "caption": "Multiplying by seven was never right.",
+      "title": "Your dog is older than you think",
+      "script": "Dog age against human age, from the 2020 methylation study.",
+      "prompts": {
+        "hook": "One dog year is not seven of yours.",
+        "left_label": "Dog's age",
+        "right_label": "Human years",
+        "rows": [
+          { "left": "1", "right": "31" },
+          { "left": "2", "right": "42" },
+          { "left": "4", "right": "53" },
+          { "left": "7", "right": "62" },
+          { "left": "12", "right": "71" }
+        ],
+        "close": "A one-year-old dog is already past thirty.",
+        "source": "Human age = 16 × ln(dog age) + 31. Wang et al., Cell Systems, 2020. Measured in Labradors."
+      },
+      "ai": { "generated": false }
+    }
+  ]
+}

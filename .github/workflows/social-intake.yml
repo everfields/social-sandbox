@@ -1,0 +1,96 @@
+name: social-intake
+
+# Runs when the PC pushes a batch (queue/**). Every post is checked: specs, perceptual dedupe, captions, AI marking. A failing
+# post moves to quarantine/, never to a network. Then the runway is deployed to Pages. Managed by the launch-company skill.
+on:
+  push:
+    branches: [main]
+    paths: ["queue/**"]
+  workflow_dispatch:
+    inputs:
+      recheck:
+        description: Check every queued post again
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: social-state
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: engine
+  PYTHONUNBUFFERED: "1"
+  SOCIAL_CRON: ${{ vars.SOCIAL_CRON || 'off' }}
+  SOCIAL_LIVE_NETWORKS: ${{ vars.SOCIAL_LIVE_NETWORKS }}
+  SOCIAL_PUBLIC_BASE_URL: ${{ vars.SOCIAL_PUBLIC_BASE_URL }}
+  COS_EVENT_TOKEN: ${{ secrets.COS_EVENT_TOKEN }}
+
+jobs:
+  intake:
+    # A commit by this workflow (moving posts, recording checks) must not start it again.
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[intake]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - name: c2patool (the Content Authenticity Initiative's own release)
+        run: |
+          curl -sSL -o c2pa.tgz https://github.com/contentauth/c2pa-rs/releases/download/c2patool-v0.27.22/c2patool-v0.27.22-x86_64-unknown-linux-gnu.tar.gz
+          mkdir -p .tools && tar xzf c2pa.tgz -C .tools --strip-components=1 && rm c2pa.tgz
+          echo "SOCIAL_C2PATOOL=$PWD/.tools/c2patool" >> "$GITHUB_ENV"
+      - name: Load the state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$remote" social-state >/dev/null; then
+            git clone --quiet --depth 1 --branch social-state "$remote" state
+          else
+            git init --quiet -b social-state state
+            git -C state remote add origin "$remote"
+          fi
+      - name: Check the batch
+        run: python -m social intake ${{ inputs.recheck && '--recheck' || '' }} | tee intake-report.json
+      - name: Record the checks
+        run: |
+          python -m social archive
+          for d in queue quarantine archive; do [ -d "$d" ] && git add -A "$d"; done
+          git diff --cached --quiet && exit 0
+          git -c user.name=social-intake -c user.email=actions@users.noreply.github.com commit --quiet -m "[intake] checks $(date -u +%FT%TZ)"
+          for i in 1 2 3 4 5; do
+            git pull --quiet --rebase origin main && git push --quiet origin HEAD:main && exit 0
+            sleep $((i * 5))
+          done
+          exit 1
+      - name: Save the state
+        if: always() && env.SOCIAL_CRON == 'live'
+        run: |
+          cd state
+          git add -A .
+          git diff --cached --quiet && exit 0
+          git -c user.name=social-intake -c user.email=actions@users.noreply.github.com commit --quiet -m "intake $(date -u +%FT%TZ)"
+          git push --quiet origin social-state
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: intake-${{ github.run_id }}
+          path: intake-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Build the runway site
+        run: python -m social pages --out site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4

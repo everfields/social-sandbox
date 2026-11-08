@@ -1,0 +1,76 @@
+{
+  "about": "What the PC side installs, where each piece comes from and its licence. Only the projects' own repos and the model authors' own Hugging Face pages (Comfy-Org is ComfyUI's own organisation: it repackages the authors' weights in the single-file format ComfyUI loads). Checked 2026-11-08. setup_pc.py reads this file; LICENCES.md in the PC folder is written from it.",
+  "comfyui": {
+    "repo": "https://github.com/Comfy-Org/ComfyUI",
+    "tag": "v0.44.0",
+    "licence": "GPL-3.0",
+    "commercial": "yes: the licence covers running it; what it renders belongs to us. We do not distribute it."
+  },
+  "torch_index": "https://download.pytorch.org/whl/cu128",
+  "pip": [
+    "kokoro==0.9.4",
+    "soundfile"
+  ],
+  "tools": [
+    {
+      "id": "ffmpeg",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-8.1.zip",
+      "source": "BtbN/FFmpeg-Builds on GitHub, the Windows build linked from ffmpeg.org/download.html",
+      "licence": "GPL-3.0 (this build)",
+      "commercial": "yes: used as a tool on our own machine, not distributed",
+      "find": "ffmpeg.exe"
+    },
+    {
+      "id": "inter",
+      "url": "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip",
+      "source": "rsms/inter on GitHub (the font's own repo)",
+      "licence": "SIL Open Font License 1.1",
+      "commercial": "yes",
+      "find": "Inter-Bold.ttf"
+    },
+    {
+      "id": "c2patool",
+      "url": "https://github.com/contentauth/c2pa-rs/releases/download/c2patool-v0.27.22/c2patool-v0.27.22-x86_64-pc-windows-msvc.zip",
+      "source": "contentauth/c2pa-rs on GitHub (the Content Authenticity Initiative's own tool)",
+      "licence": "MIT OR Apache-2.0",
+      "commercial": "yes",
+      "find": "c2patool.exe"
+    }
+  ],
+  "models": [
+    {
+      "id": "z-image-turbo",
+      "job": "stills, text in images",
+      "author": "https://huggingface.co/Tongyi-MAI/Z-Image-Turbo",
+      "licence": "Apache-2.0",
+      "commercial": "yes",
+      "files": [
+        { "url": "https://huggingface.co/Comfy-Org/Z-Image-Turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors", "dest": "diffusion_models/z_image_turbo_bf16.safetensors", "gb": 12.31 },
+        { "url": "https://huggingface.co/Comfy-Org/Z-Image-Turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors", "dest": "text_encoders/qwen_3_4b.safetensors", "gb": 8.04, "licence": "Apache-2.0 (Qwen3-4B, by Qwen)" },
+        { "url": "https://huggingface.co/Comfy-Org/Z-Image-Turbo/resolve/main/split_files/vae/ae.safetensors", "dest": "vae/ae.safetensors", "gb": 0.34, "licence": "Apache-2.0 (the FLUX.1 schnell autoencoder, by Black Forest Labs)" }
+      ]
+    },
+    {
+      "id": "wan2.2-ti2v-5b",
+      "job": "short video, text or image to video",
+      "author": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B",
+      "licence": "Apache-2.0",
+      "commercial": "yes",
+      "files": [
+        { "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors", "dest": "diffusion_models/wan2.2_ti2v_5B_fp16.safetensors", "gb": 10.0 },
+        { "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan2.2_vae.safetensors", "dest": "vae/wan2.2_vae.safetensors", "gb": 1.41 },
+        { "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors", "dest": "text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors", "gb": 6.74, "licence": "Apache-2.0 (umT5-XXL, by Google, as shipped with Wan)" }
+      ]
+    },
+    {
+      "id": "kokoro-82m",
+      "job": "voice (English; Spanish needs espeak-ng)",
+      "author": "https://huggingface.co/hexgrad/Kokoro-82M",
+      "licence": "Apache-2.0",
+      "commercial": "yes",
+      "note": "The kokoro package downloads its weights and voices from the author's page on first use. Its voices are the author's own, not clones of real people. Its English front end installs spaCy's en_core_web_sm (MIT) from the spaCy project's own releases.",
+      "files": []
+    }
+  ],
+  "never": "Non-commercial or EU-excluded licences never go in: FLUX.1/FLUX.2 [dev], Qwen-Image 2.1, Ideogram 4, F5-TTS, XTTS-v2, MusicGen, MMAudio, any Tencent Hunyuan licence. Revenue-capped ones (LTX-2.x, FLUX 3 Klein) only through a strategy gate (knowledge/social-native.md)."
+}
