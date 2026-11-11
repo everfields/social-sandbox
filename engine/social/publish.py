@@ -98,7 +98,7 @@ def run(root: Path, state_dir: Path, cfg: Config, env: Mapping[str, str], *, now
     else:
         log = real_log
     live_transport = transport or UrllibTransport()
-    alarms = Alarms(st, env, live=any_live, company_repo=cfg.company_repo, now=now, transport=live_transport)
+    alarms = Alarms.from_config(cfg, st, env, live=any_live, now=now, transport=live_transport)
     repo = repo or env.get("GITHUB_REPOSITORY", "")
     results: list[Outcome] = []
     for net in cfg.enabled():

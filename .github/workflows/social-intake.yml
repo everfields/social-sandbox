@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
   pages: write
   id-token: write
 
@@ -25,6 +26,7 @@ concurrency:
 env:
   PYTHONPATH: engine
   PYTHONUNBUFFERED: "1"
+  GITHUB_TOKEN: ${{ github.token }}
   SOCIAL_CRON: ${{ vars.SOCIAL_CRON || 'off' }}
   SOCIAL_LIVE_NETWORKS: ${{ vars.SOCIAL_LIVE_NETWORKS }}
   SOCIAL_PUBLIC_BASE_URL: ${{ vars.SOCIAL_PUBLIC_BASE_URL }}
@@ -64,12 +66,19 @@ jobs:
         run: python -m social intake ${{ inputs.recheck && '--recheck' || '' }} | tee intake-report.json
       - name: Record the checks
         run: |
+          # an identity for the rebase too: when the PC pushed meanwhile, the pull replays this commit
+          git config user.name social-intake
+          git config user.email actions@users.noreply.github.com
           python -m social archive
           for d in queue quarantine archive; do [ -d "$d" ] && git add -A "$d"; done
           git diff --cached --quiet && exit 0
-          git -c user.name=social-intake -c user.email=actions@users.noreply.github.com commit --quiet -m "[intake] checks $(date -u +%FT%TZ)"
+          git commit --quiet -m "[intake] checks $(date -u +%FT%TZ)"
           for i in 1 2 3 4 5; do
-            git pull --quiet --rebase origin main && git push --quiet origin HEAD:main && exit 0
+            if git pull --quiet --rebase origin main; then
+              git push --quiet origin HEAD:main && exit 0
+            else
+              git rebase --abort 2>/dev/null || true
+            fi
             sleep $((i * 5))
           done
           exit 1

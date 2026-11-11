@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: social-state
@@ -24,6 +25,7 @@ concurrency:
 env:
   PYTHONPATH: engine
   PYTHONUNBUFFERED: "1"
+  GITHUB_TOKEN: ${{ github.token }}
   SOCIAL_CRON: ${{ vars.SOCIAL_CRON || 'off' }}
   SOCIAL_LIVE_NETWORKS: ${{ vars.SOCIAL_LIVE_NETWORKS }}
   SOCIAL_PUBLIC_BASE_URL: ${{ vars.SOCIAL_PUBLIC_BASE_URL }}

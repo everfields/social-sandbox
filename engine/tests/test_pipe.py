@@ -642,6 +642,55 @@ class TestAlarms(TmpCase):
         self.assertEqual(st.alarms, {})
 
 
+class TestAlarmIssues(TmpCase):
+    """A company without the Company OS: alarms become GitHub issues."""
+
+    def make(self, env, issues=None):
+        issues = issues if issues is not None else []
+
+        def fn(q):
+            if q.method == "GET":
+                return HttpResponse.of_json(200, [i for i in issues if i["state"] == "open"])
+            if q.method == "POST" and q.url.endswith("/issues"):
+                issues.append({"number": len(issues) + 1, "body": q.json["body"], "state": "open", "repo": q.url})
+                return HttpResponse.of_json(201, issues[-1])
+            if q.method == "PATCH":
+                issues[int(q.url.rsplit("/", 1)[1]) - 1]["state"] = "closed"
+                return HttpResponse.of_json(200, {})
+            return HttpResponse.of_json(201, {})
+
+        stub = Stub(fn)
+        st = GuardState(self.r.state / "state.json")
+        a = alarms_mod.Alarms(st, env, live=True, company_repo="o/c", transport=stub, now=et(2026, 11, 12, 12),
+                              mode="issues", issues_repo="o/company")
+        return a, stub, issues
+
+    def test_opens_once_and_closes_when_cleared(self):
+        a, stub, issues = self.make({"COS_EVENT_TOKEN": "t", "GITHUB_REPOSITORY": "o/s"})
+        a.raise_("runway-tiktok", "tiktok: 2 days left", "body")
+        a.state.alarms.clear()
+        a.raise_("runway-tiktok", "tiktok: 2 days left", "body")
+        self.assertEqual(len(issues), 1)
+        self.assertIn("/repos/o/company/issues", issues[0]["repo"])
+        a.clear("runway-tiktok", "10 days")
+        self.assertEqual(issues[0]["state"], "closed")
+        self.assertEqual(a.errors, [])
+
+    def test_without_a_token_the_alarm_lands_in_the_social_repo(self):
+        a, stub, issues = self.make({"GITHUB_TOKEN": "g", "GITHUB_REPOSITORY": "o/social"})
+        a.raise_("heartbeat", "the PC sent no heartbeat", "body")
+        self.assertIn("/repos/o/social/issues", issues[0]["repo"])
+        self.assertEqual(stub.requests[-1].json["labels"], ["social:alarm"])
+
+    def test_from_config_reads_the_mode(self):
+        raw = json.loads(json.dumps(BASE))
+        raw["alarms"] = {"mode": "issues", "repo": "o/company"}
+        r = Repo(raw)
+        self.addCleanup(r.close)
+        a = alarms_mod.Alarms.from_config(r.cfg, GuardState(r.state / "s.json"), {}, live=False, now=et(2026, 11, 12, 12))
+        self.assertEqual((a.mode, a.issues_repo), ("issues", "o/company"))
+
+
 class TestWatch(TmpCase):
     def test_runway_and_heartbeat(self):
         st = GuardState(self.r.state / "state.json")

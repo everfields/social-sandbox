@@ -60,7 +60,7 @@ def any_live(cfg: Config) -> bool:
 
 
 def alarms_for(st: GuardState, cfg: Config) -> Alarms:
-    return Alarms(st, os.environ, live=any_live(cfg), company_repo=cfg.company_repo, now=now_utc())
+    return Alarms.from_config(cfg, st, os.environ, live=any_live(cfg), now=now_utc())
 
 
 def cmd_validate(a, cfg: Config, root: Path, state: Path) -> int:

@@ -6,5 +6,5 @@ formats) lives in each company's social repo, never here. Method: knowledge/soci
 references/social-engine.md.
 """
 
-VERSION = "1.0.0"
+VERSION = "1.1.1"
 NETWORKS = ("tiktok", "instagram", "youtube", "x")
